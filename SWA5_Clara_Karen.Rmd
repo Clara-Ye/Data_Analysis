@@ -1,0 +1,317 @@
+---
+title: "SWA5_Clara_Karen"
+author: "Karen (knsabol), Clara (zixuany)"
+date: "2019/11/24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+0. Clear workspace and load libraries:
+```{r}
+
+rm(list = ls())
+library(tidyverse)
+
+```
+
+1. Background, helper functions, and an example:
+```{r}
+
+#### Background ####
+
+## reference site -- this link randomly selects a wikipedia page about 
+ # a living person:
+site = "https://en.wikipedia.org/wiki/Special:RandomInCategory/Living_people"
+
+
+## Overview: 
+ # we're going to procede by 
+ # (1) reading in the html for a random wikipedia page
+ # (2) grabbing the name of the person the page is about (from the raw HTML)
+ # (3) doing a little cleaning to extract the paragraphs that are about that person
+
+#### Helper Functions ####
+
+## extract.title: (helpful for step (1))
+##   input: raw HTML for a wikipedia article
+##   output: the name of the person the article is about
+
+    extract.title = function(lns){
+      cut.1 = lns[grep(lns, pattern = "<title>")]
+      cut.2 = gsub("</?title>","",cut.1)
+      cut.3 = gsub(" - Wikipedia, the free encyclopedia","",cut.2)
+      cut.4 = gsub(pattern = " - Wikipedia", replacement = "", x= cut.3)
+      return(cut.4)
+    }
+
+
+## (This is a set of functions you'll run as a big chunk)
+## these take raw HTML as an input, and (together) extract
+## the paragraphs and conduct some light cleaning. (helpful for steps (1) - (3))
+
+    extract.p = function(lns){
+      cut.1 = lns[grep(lns, pattern = "<p>")]
+      cut.2 = tolower(cut.1)
+      return(cut.2)
+    }
+    
+    par.cleaner = function(str){
+      cut.1 = gsub(str, pattern = "<a href.+?>", replacement = "")
+      cut.2 = gsub(cut.1, pattern = "</a>", replacement = "")
+      cut.3 = gsub(cut.2, pattern = "<p>", replacement = "")
+      cut.4 = gsub(cut.3, pattern = "</p>", replacement = "")
+      cut.5 = gsub(cut.4, pattern = "<b>", replacement = "")
+      cut.6 = gsub(cut.5, pattern = "</b>", replacement = "")
+      cut.7 = gsub(cut.6, pattern = "<i>", replacement = "")
+      cut.8 = gsub(cut.7, pattern = "</i>", replacement = "")
+      cut.9 = gsub(cut.8, pattern = "<sup.+?>", replacement = "")
+      cut.10 = gsub(cut.9, pattern = "</sup>", replacement = "")
+      cut.11 = gsub(cut.10, pattern = "\"", replacement = "")
+      cut.12 = gsub(cut.11, pattern = "\\(", replacement = "")
+      cut.13 = gsub(cut.12, pattern = "\\)", replacement = "")
+      cut.14 = gsub(cut.13, pattern = "\\.", replacement = "")
+      cut.15 = gsub(cut.14, pattern = ",", replacement = "")
+      
+      return(cut.15)
+    }
+    
+    par.remover = function(str){
+      char.counter = sapply(str, nchar)
+      str.out = str[which(char.counter > 0)]
+      return(str.out)
+    }
+    
+    par.combiner = function(str){
+      out = paste(str, collapse = " ")
+      return(out)
+    }
+
+## Functions for 
+
+
+count.em = function(cln.in,str){
+  adj = paste(" ",str," ",sep = "")
+  hits.ind <- gregexpr(adj, cln.in)
+  test = regmatches(x = cln.in, m = hits.ind)
+  #hits = unlist(test)
+  out = length(unlist(test))
+  return(out)
+}
+
+year.extractor = function(cln.in){
+  hits.ind <- gregexpr(pattern = " [0-9]{4} ", cln.in)
+  test = regmatches(x = cln.in, m = hits.ind)
+  cut.1 = as.numeric(unlist(test))
+  if(length(cut.1) == 0){return(NA)}
+  return(cut.1)
+}
+
+
+bday.extractor = function(cln.in){
+  born.hit1 = regexpr(cln.in, pattern = "born")[[1]][1]
+  sub.string = substr(cln.in,born.hit1,born.hit1 + 30)
+  out = year.extractor(sub.string)[1]
+  return(out)
+}
+
+```
+
+```{r, eval=FALSE}
+
+site = "https://en.wikipedia.org/wiki/Special:RandomInCategory/Living_people"
+
+cur.lns = readLines(site) 
+extract.title(cur.lns)
+
+cur.words = cur.lns %>% 
+  extract.p(.) %>% 
+  par.cleaner(.) %>%
+  par.remover(.) %>%
+  par.combiner(.)
+
+count.em(cur.words, "he")
+
+bday.extractor(cur.words)
+
+nchar(cur.words)
+
+year.extractor(cur.words)
+
+```
+
+2. Function that counts the number of times the words ‘the’ and ‘an’ appear in an article:
+```{r}
+
+func.2 = function(cleanText) {
+  data = data.frame(num.the = count.em(cleanText, "the"),
+                    num.an = count.em(cleanText, "an"))
+  return(data)
+}
+
+```
+
+3. Function that counts the number of times the words ‘he’ and ‘she’ appear in an article:
+```{r}
+
+func.3 = function(cleanText) {
+  data = data.frame(num.he = count.em(cleanText,"he"),
+                    num.she = count.em(cleanText,"she"))
+  return(data)
+}
+
+```
+
+4. Function that visits, a random wikipedia page, extracts its title and counts the number of times the words ‘he’ and ‘she’ appear in it:
+```{r}
+
+func.4 = function() {
+  cur.lns = readLines(site)
+  tl = extract.title(cur.lns)
+  cur.words = cur.lns %>% 
+    extract.p(.) %>% 
+    par.cleaner(.) %>%
+    par.remover(.) %>%
+    par.combiner(.)
+  data = data.frame(title = tl,
+                    func.3(cur.words))
+  return(data)
+}
+
+```
+
+5. Add the birthyear of the person into the dataframe:
+```{r}
+func.5 = function() {
+  cur.lns = readLines(site)
+  tl = extract.title(cur.lns)
+  cur.words = cur.lns %>% 
+    extract.p(.) %>% 
+    par.cleaner(.) %>%
+    par.remover(.) %>%
+    par.combiner(.)
+  data = data.frame(title = tl,
+                    func.3(cur.words),
+                    length = nchar(cur.words),
+                    birth = bday.extractor(cur.words))
+  return(data)
+}
+
+```
+
+6. Add classification for gender (man = 1, woman = -1, neither = 0):
+```{r}
+
+func.6 = function() {
+  cur.lns = readLines(site)
+  tl = extract.title(cur.lns)
+  cur.words = cur.lns %>% 
+    extract.p(.) %>% 
+    par.cleaner(.) %>%
+    par.remover(.) %>%
+    par.combiner(.)
+  counts = func.3(cur.words)
+  if (counts$num.he > counts$num.she) {
+    class = 1}
+  else if (counts$num.she>counts$num.he) {
+    class = -1}
+  else {
+    class = 0}
+  data = data.frame(title = tl,
+                    counts,
+                    length = nchar(cur.words),
+                    birth = bday.extractor(cur.words),
+                    classification = class)
+  return(data)
+}
+
+```
+
+7. Loop through 20 articles:
+```{r, eval=FALSE}
+
+base=func.6()
+
+for (i in (0:18)) {
+  result = func.6()
+  base = rbind(base, result)
+  print(paste("Done with", i))
+}
+
+write.csv(base, "/Users/Karen/desktop/results.csv")
+
+```
+
+8. Loop through 500 articles:
+```{r, eval=FALSE}
+
+base=func.6()
+
+for (i in (0:498)) {
+  result = func.6()
+  base = rbind(base, result)
+  print(paste("Done with", i))
+}
+
+write.csv(base,"/Users/Karen/desktop/loopingdata.csv")
+
+```
+
+9. Summarize the percentage of articles about each gender classification:
+```{r}
+df=read.csv("C:/Users/Clara_Ye/Desktop/Fall_2019/66106/Homework/SWA5/swa5data500_clara_karen.csv")
+# the code was written on Karen's laptop but knitted on Clara's laptop
+# so we had to load the file from Clara's laptop to get the code work
+
+trials=500
+df %>%
+  group_by(classification) %>%
+  summarize(n() / trials)
+````
+
+68.4% are about men. 18.2% are about women. 13.4% are unclassified.
+
+
+Graph for 10a part 1, comparing article lengths for each gender classification:
+```{r}
+
+df %>%
+  group_by(classification) %>%
+  summarize(mn.length = mean(length)) %>%
+  ggplot(aes(x = classification,y = mn.length)) +
+  geom_point()
+
+```
+
+On average, articles about women are longer than articles about men. We think this is because Wikipedia has longer articles about only very significant women, while they are writing shorter articles about a wider variety of men. We think the reason that the unclassified articles were unclassified in the first place is that they are much shorter than the others (as shown in our plot), which explains why the words "he" and "she" were not found in the article.
+
+Graph for 10a part 2, looking at changes in article lengths over time:
+```{r}
+
+df %>%
+  group_by(birth,classification) %>%
+  summarize(mn.length = mean(length)) %>%
+  ggplot(aes(x = birth, y = mn.length)) +
+  facet_wrap(~classification) +
+  geom_point() + geom_smooth()
+
+```
+
+The length of men's articles stays pretty constant over time. The length of women's articles peaks for women born around 1950 and after that slightly decreases until the present. The reason for the peak around 1950 is probably the two extreme outliers, as seen in the plot.
+
+
+Graph for 10b, looking at gender imbalance over time:
+```{r}
+
+df %>%
+  filter(classification != 0) %>%
+  group_by(birth) %>%
+  summarize(mn.class = mean(classification)) %>%
+  ggplot(aes(x = birth,y = mn.class)) +
+  geom_point() + geom_smooth()
+
+```
+
+Gender bias seems to be slowly decreasing over time, because the mean classification measurement is moving toward 0.
